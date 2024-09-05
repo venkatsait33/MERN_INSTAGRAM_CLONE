@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import connectDB from "./db/db.js";
 dotenv.config({});
 
+import userRoute from "./routes/user.route.js";
+
 const app = express();
 
 app.get("/", (req, res) => {
@@ -15,6 +17,9 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(urlencoded({ extended: true }));
 app.use(cors({ credentials: true, origin: process.env.FRONTEND_URL }));
+
+//API ROUTES
+app.use("/api/v1/user", userRoute);
 
 const PORT = 8000;
 app.listen(PORT, () => {

@@ -1,8 +1,8 @@
-import userModel from "../model/user.model.js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { getDataUri } from "../utils/dataUri.js";
 import cloudinary from "../utils/cloudinary.js";
+import { User } from "../model/user.model.js";
 
 export const register = async (req, res) => {
   try {
@@ -15,7 +15,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const user = await userModel.findOne({ email });
+    const user = await User.findOne({ email });
     if (user) {
       return res.status(401).json({
         message: "User already exists",
@@ -26,12 +26,12 @@ export const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await user.create({
+    await User.create({
       username,
       email,
       password: hashedPassword,
     });
-    return res.status(200).json({
+    return res.status(201).json({
       message: "User registered successfully",
       success: true,
       error: false,
@@ -55,7 +55,7 @@ export const login = async (req, res) => {
         error: true,
       });
     }
-    let user = await userModel.findOne({ email });
+    let user = await User.findOne({ email });
 
     if (!user) {
       return res.status(401).json({
@@ -74,6 +74,18 @@ export const login = async (req, res) => {
       });
     }
 
+      const token = await jwt.sign(
+        { userId: user._id },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "1d",
+        }
+    );
+
+    console.log( user._id);
+    
+    
+
     user = {
       _id: user._id,
       username: user.username,
@@ -85,9 +97,7 @@ export const login = async (req, res) => {
       posts: user.posts,
     };
 
-    const token = await jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
+  
 
     return res
       .cookie("token", token, {
@@ -111,15 +121,11 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    return res.cookie(
-      "token",
-      "",
-      { expires: 0 }.json({
-        message: "Logged out successfully",
-        success: true,
-        error: false,
-      })
-    );
+    return res.cookie("token", "", { expires: 0 }).json({
+      message: "Logged out successfully",
+      success: true,
+      error: false,
+    });
   } catch (error) {
     res.json(error, {
       message: error.message || "Error",
@@ -132,7 +138,7 @@ export const logout = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const userId = req.params.id;
-    let user = await userModel.findById(userId);
+    let user = await User.findById(userId).select("-password");
     return res.status(200).json({
       user,
       success: true,
@@ -148,6 +154,8 @@ export const getProfile = async (req, res) => {
 export const editProfile = async (req, res) => {
   try {
     const userId = req.id;
+    console.log("userid",userId);
+    
     const { bio, gender } = req.body;
     const profilePicture = req.file;
     let cloudResponse;
@@ -155,7 +163,7 @@ export const editProfile = async (req, res) => {
       const fileUri = getDataUri(profilePicture);
       cloudResponse = await cloudinary.uploader.upload(fileUri);
     }
-    const user = await userModel.findById(userId);
+    const user = await User.findById(userId).select("-password");
     if (!user) {
       return res.status(404).json({
         message: "User not found",
@@ -184,9 +192,9 @@ export const editProfile = async (req, res) => {
 
 export const getSuggestedUsers = async (req, res) => {
   try {
-    const suggestedUsers = await userModel
-      .find({ _id: { $ne: req.id } })
-      .select("-password");
+    const suggestedUsers = await User.find({ _id: { $ne: req.id } }).select(
+      "-password"
+    );
     if (!suggestedUsers) {
       return res.status(404).json({
         message: "No users found",
@@ -211,11 +219,58 @@ export const getSuggestedUsers = async (req, res) => {
 
 export const followOrUnfollowUser = async (req, res) => {
   try {
+    const followKrneWala = req.id; // patel
+    const jiskoFollowKrunga = req.params.id; // shivani
+    if (followKrneWala === jiskoFollowKrunga) {
+      return res.status(400).json({
+        message: "You cannot follow/unfollow yourself",
+        success: false,
+      });
+    }
+
+    const user = await User.findById(followKrneWala);
+    const targetUser = await User.findById(jiskoFollowKrunga);
+
+    if (!user || !targetUser) {
+      return res.status(400).json({
+        message: "User not found",
+        success: false,
+      });
+    }
+    // mai check krunga ki follow krna hai ya unfollow
+    const isFollowing = user.following.includes(jiskoFollowKrunga);
+    if (isFollowing) {
+      // unfollow logic ayega
+      await Promise.all([
+        User.updateOne(
+          { _id: followKrneWala },
+          { $pull: { following: jiskoFollowKrunga } }
+        ),
+        User.updateOne(
+          { _id: jiskoFollowKrunga },
+          { $pull: { followers: followKrneWala } }
+        ),
+      ]);
+      return res
+        .status(200)
+        .json({ message: "Unfollowed successfully", success: true });
+    } else {
+      // follow logic ayega
+      await Promise.all([
+        User.updateOne(
+          { _id: followKrneWala },
+          { $push: { following: jiskoFollowKrunga } }
+        ),
+        User.updateOne(
+          { _id: jiskoFollowKrunga },
+          { $push: { followers: followKrneWala } }
+        ),
+      ]);
+      return res
+        .status(200)
+        .json({ message: "followed successfully", success: true });
+    }
   } catch (error) {
-    res.json(error, {
-      message: error.message || error,
-      success: false,
-      error: true,
-    });
+    console.log(error);
   }
 };

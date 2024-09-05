@@ -1,16 +1,27 @@
 import jwt from "jsonwebtoken";
-const SECRET_KEY = process.env.SECRET_KEY;
 
-function IsAuthenticated(req, res, next) {
+
+const IsAuthenticated = async (req, res, next) => {
   try {
     const token = req.cookies.token;
+    console.log(token);
+    
     if (!token) {
       return res.status(401).json({
         message: "Invalid Token Format",
       });
     }
-    const decode = jwt.verify(token, SECRET_KEY);
+    const decode = await jwt.verify(token, process.env.JWT_SECRET);
+     if (!decode) {
+       return res.status(401).json({
+         message: "Invalid",
+         success: false,
+       });
+     }
     req.id = decode.userId;
+
+    console.log(decode.userId);
+    
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -31,6 +42,6 @@ function IsAuthenticated(req, res, next) {
       stack: error.stack,
     });
   }
-}
+};
 
-module.exports = IsAuthenticated;
+export default IsAuthenticated;
