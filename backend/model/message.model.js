@@ -9,10 +9,10 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
-  message: {
+  messages: {
     type: String,
     required: true,
   },
 });
 
-export default Message = mongoose.model("Message", messageSchema);
+export const Message = mongoose.model("Message", messageSchema);

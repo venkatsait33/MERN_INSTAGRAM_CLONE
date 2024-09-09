@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { getDataUri } from "../utils/dataUri.js";
 import cloudinary from "../utils/cloudinary.js";
 import { User } from "../model/user.model.js";
+import { Post } from "../model/post.model.js";
 
 export const register = async (req, res) => {
   try {
@@ -74,17 +75,19 @@ export const login = async (req, res) => {
       });
     }
 
-      const token = await jwt.sign(
-        { userId: user._id },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "1d",
-        }
-    );
+    const token = await jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
-    console.log( user._id);
-    
-    
+    const populatedPosts = await Promise.all(
+      user.posts.map(async (postId) => {
+        const post = await Post.findById(postId);
+        if (post.author.equals(user._id)) {
+          return post;
+        }
+        return null; // Exclude posts where the user is not the author
+      })
+    );
 
     user = {
       _id: user._id,
@@ -94,10 +97,8 @@ export const login = async (req, res) => {
       bio: user.bio,
       followers: user.followers,
       following: user.following,
-      posts: user.posts,
+      posts: populatedPosts,
     };
-
-  
 
     return res
       .cookie("token", token, {
@@ -154,8 +155,8 @@ export const getProfile = async (req, res) => {
 export const editProfile = async (req, res) => {
   try {
     const userId = req.id;
-    console.log("userid",userId);
-    
+    console.log("userid", userId);
+
     const { bio, gender } = req.body;
     const profilePicture = req.file;
     let cloudResponse;
